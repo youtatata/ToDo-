@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Inkleaf — 紙とインクの帳面</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-bg: #141b24;
+    --navy-deep: #0e141b;
+    --navy-soft: #1c2531;
+    --paper: #efe7d8;
+    --paper-shadow: #d9cdb1;
+    --ink: #2b2b26;
+    --brass: #c9a227;
+    --brass-dark: #8f7218;
+    --sage: #7fb6a0;
+    --sage-dark: #4f7d6c;
+    --rust: #b8583f;
+    --muted: #948d7c;
+    --font-display: 'Fraunces', serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    margin:0;
+    min-height:100vh;
+    font-family: var(--font-body);
+    background:
+      radial-gradient(circle at 20% 10%, rgba(255,255,255,0.04), transparent 40%),
+      radial-gradient(circle at 80% 90%, rgba(255,255,255,0.03), transparent 45%),
+      linear-gradient(180deg, var(--navy-bg), var(--navy-deep));
+    color: var(--ink);
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding: clamp(20px, 5vw, 64px) 16px 48px;
+  }
+
+  .desk{
+    width:100%;
+    max-width: 760px;
+  }
+
+  .book{
+    position:relative;
+    background: var(--paper);
+    border-radius: 6px;
+    box-shadow:
+      0 30px 60px -20px rgba(0,0,0,0.55),
+      0 2px 0 rgba(255,255,255,0.06) inset;
+    padding: 34px clamp(20px,5vw,48px) 30px 58px;
+    animation: rise .6s cubic-bezier(.2,.8,.2,1) both;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .book{ animation:none; }
+  }
+
+  @keyframes rise{
+    from{ opacity:0; transform: translateY(14px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+
+  /* stitched binding on the left edge */
+  .book::before{
+    content:'';
+    position:absolute;
+    left:30px; top:14px; bottom:14px; width:2px;
+    background: repeating-linear-gradient(
+      to bottom, var(--muted) 0 5px, transparent 5px 13px
+    );
+    opacity:.55;
+  }
+  .book::after{
+    content:'';
+    position:absolute;
+    left:23px; top:14px; bottom:14px; width:16px;
+    background-image: radial-gradient(circle, var(--navy-deep) 2.6px, transparent 3px);
+    background-size: 16px 26px;
+    background-repeat: repeat-y;
+    opacity:.35;
+  }
+
+  .tabs{
+    position:absolute;
+    top:-32px; right: clamp(16px, 6vw, 44px);
+    display:flex;
+    gap:6px;
+  }
+  .tab{
+    font-family: var(--font-display);
+    font-weight:600;
+    font-size:14px;
+    letter-spacing:.02em;
+    border:none;
+    padding:10px 20px 12px;
+    border-radius:8px 8px 0 0;
+    cursor:pointer;
+    color: var(--paper);
+    background: var(--navy-soft);
+    opacity:.6;
+    transform: translateY(4px);
+    transition: transform .2s ease, opacity .2s ease, background .2s ease;
+  }
+  .tab:hover{ opacity:.85; }
+  .tab.active{
+    background: var(--paper);
+    color: var(--ink);
+    opacity:1;
+    transform: translateY(0);
+  }
+  .tab:focus-visible{ outline:2px solid var(--brass); outline-offset:2px; }
+  .tab-todo.active{ box-shadow: inset 0 3px 0 var(--brass); }
+  .tab-memo.active{ box-shadow: inset 0 3px 0 var(--sage-dark); }
+
+  .page-head{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    border-bottom: 1.5px solid var(--paper-shadow);
+    padding-bottom:14px;
+    margin-bottom: 18px;
+  }
+  .brand{
+    font-family: var(--font-display);
+    font-size: clamp(24px, 4vw, 30px);
+    font-weight:700;
+    margin:0;
+    letter-spacing:.01em;
+  }
+  .date-mono{
+    font-family: var(--font-mono);
+    font-size:12px;
+    color: var(--muted);
+  }
+
+  .panel{ display:none; }
+  .panel.active{ display:block; animation: fadein .35s ease both; }
+  @keyframes fadein{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
+  @media (prefers-reduced-motion: reduce){ .panel.active{ animation:none; } }
+
+  /* ---- ToDo ---- */
+  .add-row{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    border-bottom: 1px dashed var(--paper-shadow);
+    padding-bottom: 12px;
+    margin-bottom: 6px;
+  }
+  #todoInput{
+    flex:1;
+    border:none;
+    background:transparent;
+    font-family: var(--font-body);
+    font-size:15px;
+    color: var(--ink);
+    padding:8px 2px;
+  }
+  #todoInput:focus{ outline:none; }
+  #todoInput::placeholder{ color: var(--muted); }
+
+  .add-btn{
+    width:30px; height:30px;
+    border-radius:50%;
+    border:1.5px solid var(--brass-dark);
+    background: transparent;
+    color: var(--brass-dark);
+    font-size:18px;
+    line-height:1;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition: background .15s ease, color .15s ease, transform .15s ease;
+  }
+  .add-btn:hover{ background: var(--brass-dark); color: var(--paper); transform: rotate(90deg); }
+  .add-btn:focus-visible{ outline:2px solid var(--brass); outline-offset:2px; }
+
+  .todo-list{
+    list-style:none; margin:0; padding:0;
+  }
+  .todo-item{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:12px 2px;
+    border-bottom: 1px solid var(--paper-shadow);
+    animation: fadein .3s ease both;
+  }
+  @media (prefers-reduced-motion: reduce){ .todo-item{ animation:none; } }
+
+  .ink-check{ position:relative; display:inline-flex; cursor:pointer; flex-shrink:0; }
+  .ink-check input{
+    position:absolute; opacity:0; width:26px; height:26px; margin:0; cursor:pointer;
+  }
+  .ink-circle{
+    width:20px; height:20px;
+    border:2px solid var(--brass-dark);
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    transition: border-color .25s ease;
+  }
+  .ink-fill{
+    width:0; height:0;
+    border-radius: 46% 54% 58% 42% / 50% 46% 54% 50%;
+    background: radial-gradient(circle at 35% 35%, var(--ink), var(--brass-dark) 85%);
+    transition: width .35s cubic-bezier(.34,1.56,.64,1), height .35s cubic-bezier(.34,1.56,.64,1);
+  }
+  .todo-item.done .ink-circle{ border-color: var(--sage-dark); }
+  .todo-item.done .ink-fill{ width:12px; height:12px; }
+  .ink-check input:focus-visible ~ .ink-circle{ outline:2px solid var(--brass); outline-offset:3px; }
+
+  .todo-text{
+    flex:1;
+    font-size:15px;
+    position:relative;
+    word-break: break-word;
+  }
+  .todo-text::after{
+    content:'';
+    position:absolute; left:0; top:50%; height:1.5px; width:0;
+    background: var(--muted);
+    transition: width .4s ease;
+  }
+  .todo-item.done .todo-text{ color: var(--muted); }
+  .todo-item.done .todo-text::after{ width:100%; }
+
+  .del-btn{
+    border:none; background:transparent; cursor:pointer;
+    color: var(--muted); opacity:0;
+    padding:4px;
+    transition: opacity .15s ease, color .15s ease;
+  }
+  .todo-item:hover .del-btn, .note-card:hover .del-btn{ opacity:1; }
+  .del-btn:hover{ color: var(--rust); }
+  .del-btn:focus-visible{ opacity:1; outline:2px solid var(--brass); outline-offset:2px; }
+  .del-btn svg{ width:16px; height:16px; display:block; }
+
+  .empty-msg{
+    display:none;
+    color: var(--muted);
+    font-style: italic;
+    font-family: var(--font-display);
+    font-size:15px;
+    padding: 22px 2px;
+  }
+  .empty-msg.show{ display:block; }
+
+  .todo-footer{
+    font-family: var(--font-mono);
+    font-size:12px;
+    color: var(--muted);
+    padding-top:14px;
+    text-align:right;
+  }
+
+  /* ---- Memo ---- */
+  .memo-toolbar{ margin-bottom:16px; }
+  .add-note-btn{
+    font-family: var(--font-display);
+    font-weight:600;
+    font-size:14px;
+    border:1.5px solid var(--sage-dark);
+    color: var(--sage-dark);
+    background:transparent;
+    padding:9px 16px;
+    border-radius:20px;
+    cursor:pointer;
+    transition: background .15s ease, color .15s ease;
+  }
+  .add-note-btn:hover{ background: var(--sage-dark); color: var(--paper); }
+  .add-note-btn:focus-visible{ outline:2px solid var(--brass); outline-offset:2px; }
+
+  .notes-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap:16px;
+  }
+  .note-card{
+    background: #f7f1e4;
+    border-top: 4px solid var(--accent, var(--brass));
+    border-radius: 3px 3px 6px 6px;
+    box-shadow: 0 8px 18px -8px rgba(0,0,0,0.35);
+    padding:14px 14px 10px;
+    display:flex;
+    flex-direction:column;
+    min-height:120px;
+    animation: fadein .3s ease both;
+    transition: transform .18s ease, box-shadow .18s ease;
+  }
+  @media (prefers-reduced-motion: reduce){ .note-card{ animation:none; } }
+  .note-card:hover{ transform: translateY(-3px); box-shadow: 0 14px 26px -10px rgba(0,0,0,0.4); }
+
+  .note-text{
+    flex:1;
+    resize:none;
+    border:none;
+    background:transparent;
+    font-family: var(--font-body);
+    font-size:14px;
+    line-height:1.5;
+    color: var(--ink);
+    min-height:70px;
+    overflow:hidden;
+  }
+  .note-text:focus{ outline:none; }
+  .note-text::placeholder{ color:var(--muted); }
+
+  .note-footer{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-top:8px;
+    padding-top:8px;
+    border-top:1px dashed var(--paper-shadow);
+  }
+  .note-time{
+    font-family: var(--font-mono);
+    font-size:11px;
+    color: var(--muted);
+  }
+
+  @media (max-width: 560px){
+    .book{ padding-left:44px; }
+    .book::before{ left:22px; }
+    .book::after{ left:15px; }
+    .tabs{ right:12px; }
+    .tab{ padding:8px 14px 10px; font-size:13px; }
+  }
+</style>
+</head>
+<body>
+  <div class="desk">
+    <div class="book">
+      <nav class="tabs" role="tablist" aria-label="ノートのセクション">
+        <button class="tab tab-todo active" data-tab="todo" role="tab" aria-selected="true">To Do</button>
+        <button class="tab tab-memo" data-tab="memo" role="tab" aria-selected="false">メモ</button>
+      </nav>
+
+      <div class="page">
+        <header class="page-head">
+          <h1 class="brand">Inkleaf</h1>
+          <span class="date-mono" id="todayDate"></span>
+        </header>
+
+        <section class="panel active" id="panel-todo">
+          <form class="add-row" id="todoForm">
+            <input type="text" id="todoInput" placeholder="今日やることを書く…" autocomplete="off" maxlength="200" />
+            <button type="submit" class="add-btn" aria-label="タスクを追加">+</button>
+          </form>
+          <ul class="todo-list" id="todoList"></ul>
+          <p class="empty-msg" id="todoEmpty">ページはまだ真っ白。最初の一行を書いてみましょう。</p>
+          <footer class="todo-footer" id="todoFooter"></footer>
+        </section>
+
+        <section class="panel" id="panel-memo">
+          <div class="memo-toolbar">
+            <button class="add-note-btn" id="addNoteBtn">+ 新しいメモ</button>
+          </div>
+          <div class="notes-grid" id="notesGrid"></div>
+          <p class="empty-msg" id="memoEmpty">メモはまだありません。ひらめきを書き留めて。</p>
+        </section>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const ACCENTS = ['var(--brass)', 'var(--sage)', 'var(--rust)', 'var(--sage-dark)'];
+  const TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>';
+
+  let tasks = [];
+  let notes = [];
+  let taskSeq = 1;
+  let noteSeq = 1;
+
+  // ---- tabs ----
+  const tabs = document.querySelectorAll('.tab');
+  const panels = {
+    todo: document.getElementById('panel-todo'),
+    memo: document.getElementById('panel-memo')
+  };
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected','false'); });
+      tab.classList.add('active');
+      tab.setAttribute('aria-selected','true');
+      Object.values(panels).forEach(p => p.classList.remove('active'));
+      panels[tab.dataset.tab].classList.add('active');
+    });
+  });
+
+  // ---- date header ----
+  const dateEl = document.getElementById('todayDate');
+  const today = new Date();
+  const weekdays = ['日','月','火','水','木','金','土'];
+  dateEl.textContent = `${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')} (${weekdays[today.getDay()]})`;
+
+  // ---- ToDo ----
+  const todoForm = document.getElementById('todoForm');
+  const todoInput = document.getElementById('todoInput');
+  const todoList = document.getElementById('todoList');
+  const todoEmpty = document.getElementById('todoEmpty');
+  const todoFooter = document.getElementById('todoFooter');
+
+  function escapeHtml(str){
+    return str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function renderTasks(){
+    todoList.innerHTML = '';
+    tasks.forEach(task => {
+      const li = document.createElement('li');
+      li.className = 'todo-item' + (task.done ? ' done' : '');
+      li.dataset.id = task.id;
+      li.innerHTML = `
+        <label class="ink-check">
+          <input type="checkbox" ${task.done ? 'checked' : ''} aria-label="完了にする" />
+          <span class="ink-circle"><span class="ink-fill"></span></span>
+        </label>
+        <span class="todo-text">${escapeHtml(task.text)}</span>
+        <button class="del-btn" aria-label="削除">${TRASH_ICON}</button>
+      `;
+      todoList.appendChild(li);
+    });
+
+    const remaining = tasks.filter(t => !t.done).length;
+    todoEmpty.classList.toggle('show', tasks.length === 0);
+    if (tasks.length === 0){
+      todoFooter.textContent = '';
+    } else if (remaining === 0){
+      todoFooter.textContent = 'すべて完了しました';
+    } else {
+      todoFooter.textContent = `残り ${remaining} 件`;
+    }
+  }
+
+  todoForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const text = todoInput.value.trim();
+    if (!text) return;
+    tasks.push({ id: taskSeq++, text, done: false });
+    todoInput.value = '';
+    renderTasks();
+  });
+
+  todoList.addEventListener('change', e => {
+    if (e.target.matches('input[type="checkbox"]')){
+      const li = e.target.closest('.todo-item');
+      const id = Number(li.dataset.id);
+      const task = tasks.find(t => t.id === id);
+      task.done = e.target.checked;
+      li.classList.toggle('done', task.done);
+      todoFooter.textContent = tasks.filter(t=>!t.done).length === 0
+        ? 'すべて完了しました'
+        : `残り ${tasks.filter(t=>!t.done).length} 件`;
+    }
+  });
+
+  todoList.addEventListener('click', e => {
+    const btn = e.target.closest('.del-btn');
+    if (!btn) return;
+    const li = btn.closest('.todo-item');
+    const id = Number(li.dataset.id);
+    tasks = tasks.filter(t => t.id !== id);
+    li.style.transition = 'opacity .2s ease, transform .2s ease';
+    li.style.opacity = '0';
+    li.style.transform = 'translateX(6px)';
+    setTimeout(renderTasks, 180);
+  });
+
+  // ---- Memo ----
+  const notesGrid = document.getElementById('notesGrid');
+  const memoEmpty = document.getElementById('memoEmpty');
+  const addNoteBtn = document.getElementById('addNoteBtn');
+
+  function timeLabel(){
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+
+  function autoGrow(textarea){
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+  }
+
+  function renderNotes(){
+    notesGrid.innerHTML = '';
+    notes.forEach(note => {
+      const card = document.createElement('div');
+      card.className = 'note-card';
+      card.style.setProperty('--accent', note.accent);
+      card.dataset.id = note.id;
+      card.innerHTML = `
+        <textarea class="note-text" placeholder="思いついたことを…" rows="1">${escapeHtml(note.text)}</textarea>
+        <div class="note-footer">
+          <span class="note-time">${note.time}</span>
+          <button class="del-btn" aria-label="メモを削除">${TRASH_ICON}</button>
+        </div>
+      `;
+      notesGrid.appendChild(card);
+      const ta = card.querySelector('.note-text');
+      autoGrow(ta);
+    });
+    memoEmpty.classList.toggle('show', notes.length === 0);
+  }
+
+  addNoteBtn.addEventListener('click', () => {
+    const note = {
+      id: noteSeq++,
+      text: '',
+      time: timeLabel(),
+      accent: ACCENTS[(noteSeq - 1) % ACCENTS.length]
+    };
+    notes.unshift(note);
+    renderNotes();
+    const firstTextarea = notesGrid.querySelector('.note-text');
+    if (firstTextarea) firstTextarea.focus();
+  });
+
+  notesGrid.addEventListener('input', e => {
+    if (e.target.matches('.note-text')){
+      autoGrow(e.target);
+      const card = e.target.closest('.note-card');
+      const id = Number(card.dataset.id);
+      const note = notes.find(n => n.id === id);
+      note.text = e.target.value;
+    }
+  });
+
+  notesGrid.addEventListener('click', e => {
+    const btn = e.target.closest('.del-btn');
+    if (!btn) return;
+    const card = btn.closest('.note-card');
+    const id = Number(card.dataset.id);
+    notes = notes.filter(n => n.id !== id);
+    card.style.transition = 'opacity .2s ease, transform .2s ease';
+    card.style.opacity = '0';
+    card.style.transform = 'translateY(6px)';
+    setTimeout(renderNotes, 180);
+  });
+
+  renderTasks();
+  renderNotes();
+})();
+</script>
+</body>
+</html>
